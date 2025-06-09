@@ -1,57 +1,121 @@
 <?php
-// Profile image upload handler
-$uploadMessage = '';
-$uploadedImagePath = 'uploads/default.png'; // Default profile picture
+session_start();
 
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_FILES["profile_image"])) {
-    $targetDir = "uploads/";
-    $imageName = uniqid() . "_" . basename($_FILES["profile_image"]["name"]);
-    $targetFile = $targetDir . $imageName;
-    $imageFileType = strtolower(pathinfo($targetFile, PATHINFO_EXTENSION));
+
+// Redirect if admin_org not set
+// if (!isset($_SESSION['admin_org'])) {
+//     header("Location: login.php");
+//     exit;
+// }
+
+
+if (!isset($_SESSION['admin_org']) || !isset($_SESSION['admin_db'])) {
+    // User not logged in properly
+    header("Location: login.php");
+    exit;
+}
+
+// $org = $_SESSION['admin_org'];
+$dbName = $_SESSION['admin_db'];
+
+
+
+
+
+$org_name_raw = $_SESSION['admin_org'];
+
+// Sanitize org name for folder creation (allow only letters, digits, dash, underscore)
+$org_name = preg_replace("/[^a-zA-Z0-9_-]/", "", $org_name_raw);
+$org_folder = "uploads/$org_name/";
+
+
+
+
+// Create org folder if it doesn't exist
+if (!is_dir($org_folder)) {
+    mkdir($org_folder, 0755, true);
+}
+
+// Default image path
+$default_image = "uploads/default.png";
+
+// Load last uploaded image path for this specific organization, else default
+$uploadedImagePath = $_SESSION['profile_image_path_' . $org_name] ?? $default_image;
+
+// Handle upload on POST
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_FILES["profile_image"])) {
+    $imageFile = $_FILES["profile_image"];
+    $imageFileType = strtolower(pathinfo($imageFile["name"], PATHINFO_EXTENSION));
     $allowedTypes = ['jpg', 'jpeg', 'png', 'gif'];
-    $uploadOk = 1;
+    $uploadOk = true;
+    $uploadMessage = '';
 
-    if (getimagesize($_FILES["profile_image"]["tmp_name"]) === false) {
-        $uploadMessage = "File is not an image.";
-        $uploadOk = 0;
-    }
-
-    if ($_FILES["profile_image"]["size"] > 2000000) {
-        $uploadMessage = "File too large. Max 2MB.";
-        $uploadOk = 0;
-    }
-
-    if (!in_array($imageFileType, $allowedTypes)) {
-        $uploadMessage = "Invalid file type.";
-        $uploadOk = 0;
+    // Validate image
+    if (getimagesize($imageFile["tmp_name"]) === false) {
+        $uploadMessage = "File is not a valid image.";
+        $uploadOk = false;
+    } elseif ($imageFile["size"] > 2 * 1024 * 1024) {
+        $uploadMessage = "File too large. Max size is 2MB.";
+        $uploadOk = false;
+    } elseif (!in_array($imageFileType, $allowedTypes)) {
+        $uploadMessage = "Invalid file type. Allowed: JPG, JPEG, PNG, GIF.";
+        $uploadOk = false;
     }
 
     if ($uploadOk) {
-        if (!is_dir($targetDir)) {
-            mkdir($targetDir, 0755, true);
+        // Fixed filename: orgname.png (force png extension to keep consistency)
+        $fixedFileName = $org_name . ".png";
+        $targetFile = $org_folder . $fixedFileName;
+
+        // Delete previous profile picture if exists
+        if (file_exists($targetFile)) {
+            unlink($targetFile);
         }
 
-        if (move_uploaded_file($_FILES["profile_image"]["tmp_name"], $targetFile)) {
+        // Keep original extension to avoid format mismatch
+        $fixedFileName = $org_name . "." . $imageFileType;
+        $targetFile = $org_folder . $fixedFileName;
+
+        // Delete previous files with other extensions to clean up old files
+        foreach ($allowedTypes as $ext) {
+            $oldFile = $org_folder . $org_name . "." . $ext;
+            if ($ext !== $imageFileType && file_exists($oldFile)) {
+                unlink($oldFile);
+            }
+        }
+
+        if (move_uploaded_file($imageFile["tmp_name"], $targetFile)) {
             $uploadMessage = "Profile picture uploaded successfully!";
             $uploadedImagePath = $targetFile;
+            // Store with org-specific key
+            $_SESSION['profile_image_path_' . $org_name] = $uploadedImagePath;
         } else {
-            $uploadMessage = "Error uploading file.";
+            $uploadMessage = "Error occurred while uploading.";
         }
     }
+
+    $_SESSION['upload_message'] = $uploadMessage;
+
+    // Redirect to clear POST and avoid resubmission on refresh
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
 }
+
+// Get and clear upload message after redirect
+$uploadMessage = $_SESSION['upload_message'] ?? '';
+unset($_SESSION['upload_message']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Admin Page</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
     <style>
         body {
             font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
+            margin: 0; padding: 0;
         }
         .nav-bar {
             display: flex;
@@ -67,8 +131,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_FILES["profile_image"])) {
             list-style: none;
             display: flex;
             gap: 20px;
-            margin: 0;
-            padding: 0;
+            margin: 0; padding: 0;
         }
         .nav-list li a {
             color: white;
@@ -88,10 +151,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_FILES["profile_image"])) {
             margin: 30px 0;
         }
         .profile-pic {
-            width: 150px;
-            height: 150px;
+            width: 400px;
+            height: 400px;
             object-fit: cover;
-            border-radius: 50%;
+            border-radius: 2px;
             border: 4px solid #4CAF50;
         }
         .upload-section {
@@ -106,6 +169,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_FILES["profile_image"])) {
             color: white;
             border: none;
             border-radius: 5px;
+            cursor: pointer;
         }
         .upload-message {
             color: green;
@@ -131,13 +195,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_FILES["profile_image"])) {
 <body>
     <!-- Navigation Bar -->
     <nav class="nav-bar">
-        <img class="logo" src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRZlau7ss4kuWz3N0c8VZ-xvwswfkG74dsouw&s" alt="Logo">
+        <img class="logo" src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRZlau7ss4kuWz3N0c8VZ-xvwswfkG74dsouw&s" alt="Logo" />
         <ul class="nav-list">
             <li><a href="adminPage.php"><i class="fas fa-home"></i> Home</a></li>
-            <li><a href="spotStatus.php"><i class="fas fa-info-circle"></i> Spot Status</a></li>
-            <li><a href="acceptPayment.php"><i class="fas fa-credit-card"></i> Process Payment</a></li>
-            <li><a href="setPrice.php"><i class="fas fa-dollar-sign"></i> Set Price</a></li>
-            <li><a href="p.php"><i class="fas fa-edit"></i> Edit</a></li>
+            <li><a href="manage_spot.php"><i class="fas fa-info-circle"></i> Spot Status</a></li>
+            <li><a href="price_password.php"><i class="fas fa-dollar-sign"></i> Set Price</a></li>
+            <li><a href="price_password.php"><i class="fas fa-edit"></i> Edit</a></li>
             <li><a href="login.php"><i class="fas fa-user"></i> Logout</a></li>
         </ul>
     </nav>
@@ -148,13 +211,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_FILES["profile_image"])) {
 
         <!-- Profile Picture -->
         <div class="profile-container">
-            <img src="<?= htmlspecialchars($uploadedImagePath) ?>" class="profile-pic" alt="Profile Picture">
+            <!-- Add cache buster to force reload on upload -->
+            <img src="<?= htmlspecialchars($uploadedImagePath) . '?v=' . time() ?>" class="profile-pic" alt="Profile Picture" />
         </div>
 
         <!-- Upload Form -->
         <div class="upload-section">
-            <form action="" method="POST" enctype="multipart/form-data">
-                <input type="file" name="profile_image" accept="image/*" required><br>
+            <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
+                <input type="file" name="profile_image" accept="image/*" required /><br />
                 <button type="submit">Upload Profile Picture</button>
             </form>
             <?php if ($uploadMessage): ?>

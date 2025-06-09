@@ -77,7 +77,6 @@ $conn->close();
             <li id="menu-icon" class="menu-icon"><i class="fas fa-bars"></i></li>
             <ul class="nav-list" id="nav-list">
                 <li><a href="home.html"><i class="fas fa-home"></i>Home</a></li>
-                <li><a href="contact.html"><i class="fas fa-phone"></i>Contact</a></li>
                 <li><a href="login.html"><i class="fas fa-user"></i>Check Your spot</a></li>
             </ul>
         </nav>
@@ -132,7 +131,8 @@ $conn->close();
                 Price: $${spot.price}<br>
                 Info: ${spot.info}<br>
                 <button onclick="showRoute(${lat}, ${lng})">Want to Go</button><br>
-                <a href="reserve.html">Reserve Spot</a>
+          <a href="reserve.php?org_name=${encodeURIComponent(spot.org_name)}&price=${encodeURIComponent(spot.price)}">Reserve Spot</a>
+
             `);
         });
 

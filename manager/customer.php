@@ -38,7 +38,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     if ($new_db->connect_error) {
                         $errors[] = "Connection to new DB failed: " . $new_db->connect_error;
                     } else {
-                        // STEP 5: Create admin_data table
                         $createAdminTable = "
                             CREATE TABLE IF NOT EXISTS admin_data (
                                 id INT AUTO_INCREMENT PRIMARY KEY,

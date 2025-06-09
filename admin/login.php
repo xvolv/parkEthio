@@ -1,45 +1,51 @@
 <?php
 session_start();
-
 $message = "";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $org_name = trim($_POST['org_name']);
     $password = $_POST['password'];
 
-    // Construct DB filename based on org_name
-    $db_filename = $org_name . '.db';
+    // Compose database name dynamically
+    $db_name = $org_name . '_db';
 
-    if (!file_exists($db_filename)) {
-        $message = "❌ No database found for this organization.";
+    // Database connection credentials
+    $host = 'localhost';
+    $user = 'root';
+    $pass = '';
+
+    // Attempt connection
+    $conn = new mysqli($host, $user, $pass, $db_name);
+
+    if ($conn->connect_error) {
+        $message = "❌ Invalid username or password.";
     } else {
-        try {
-            $pdo = new PDO("sqlite:" . $db_filename);
-            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        // Prepare SQL to avoid SQL injection
+        $stmt = $conn->prepare("SELECT * FROM admin_data WHERE org_name = ?");
+        $stmt->bind_param("s", $org_name);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $admin = $result->fetch_assoc();
 
-            // Check admin_data table for matching org_name
-            $stmt = $pdo->prepare("SELECT * FROM admin_data WHERE org_name = :org_name");
-            $stmt->execute(['org_name' => $org_name]);
-            $admin = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if ($admin) {
-                if (password_verify($password, $admin['password'])) {
-                    $_SESSION['admin_org'] = $admin['org_name'];
-                    header("Location: admin_dashboard.php"); // Redirect to dashboard
-                    exit;
-                } else {
-                    $message = "❌ Incorrect password.";
-                }
+        if ($admin) {
+            // Check password
+            if (password_verify($password, $admin['password'])) {
+                $_SESSION['admin_org'] = $admin['org_name'];
+                $_SESSION['admin_db'] = $db_name; // <--- Add this line
+                header("Location: adminPage.php");
+                exit;
             } else {
-                $message = "❌ Admin not found in admin_data table.";
+                $message = "❌ Incorrect password.";
             }
-        } catch (PDOException $e) {
-            $message = "❌ Database error: " . $e->getMessage();
+        } else {
+            $message = "❌ Admin not found in admin_data table.";
         }
+
+        $stmt->close();
+        $conn->close();
     }
 }
 ?>
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -96,7 +102,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             text-align: center;
             margin-bottom: 10px;
         }
-
     </style>
 </head>
 <body>
