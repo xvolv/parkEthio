@@ -261,10 +261,14 @@ $conn->close();
             </div>
         <?php endif; ?>
 
-        <form id="reservation-form" method="POST" action="">
+        <form id="reservation-form" method="POST" action="reserveInfo.php">
             <div>
                 <label for="license_plate">Vehicle Plate Number</label>
                 <input type="text" id="license_plate" name="license_plate" placeholder="e.g., 3ABC123" required>
+            </div>
+            <div>
+                <label for="customer_name">Your name</label>
+                <input type="text" id="customer_name" name="customer_name" placeholder="e.g., salhadin"  required>
             </div>
             
             <div>
@@ -275,6 +279,8 @@ $conn->close();
             <div>
                 <label for="duration">Duration (hours)</label>
                 <input type="number" id="duration" name="duration" min="1" max="24" value="1" required>
+                <input type="hidden" name="price" value="<?php echo $pricePerHour; ?>">
+
             </div>
             
           
